@@ -39,16 +39,22 @@ jobs:
         EOL
         brew bundle --verbose
 
+    # 【唯一修改点1：精准使用brew的Python3.11安装依赖】
     - name: Install Mako and meson
-      run: pip3 install mako meson
+      run: |
+        /opt/homebrew/opt/python@3.11/bin/python3.11 -m pip install --upgrade pip
+        /opt/homebrew/opt/python@3.11/bin/python3.11 -m pip install mako meson
+      env:
+        PATH: /opt/homebrew/opt/python@3.11/bin:$PATH
 
+    # 【唯一修改点2：使用brew Python对应的meson绝对路径】
     - name: Configure
       run: |
         cat > native_config <<EOL
         [binaries]
         llvm-config = '/opt/homebrew/opt/llvm/bin/llvm-config'
         EOL
-        meson . build \
+        /opt/homebrew/opt/python@3.11/bin/meson . build \
           --native-file=native_config \
           -Dmoltenvk-dir=$(brew --prefix molten-vk) \
           -Dbuild-tests=true \
@@ -58,14 +64,17 @@ jobs:
           -Dllvm=enabled \
           -Dvulkan-drivers=swrast
 
+    # 【唯一修改点3：统一meson调用路径】
     - name: Build
-      run: meson compile -C build
+      run: /opt/homebrew/opt/python@3.11/bin/meson compile -C build
 
+    # 【唯一修改点4：统一meson调用路径】
     - name: Test
-      run: meson test -C build --print-errorlogs
+      run: /opt/homebrew/opt/python@3.11/bin/meson test -C build --print-errorlogs
 
+    # 【唯一修改点5：统一meson调用路径】
     - name: Install
-      run: meson install -C build --destdir $PWD/install
+      run: /opt/homebrew/opt/python@3.11/bin/meson install -C build --destdir $PWD/install
 
     - name: 'Upload Artifact'
       if: always()
