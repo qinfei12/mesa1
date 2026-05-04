@@ -9,13 +9,16 @@ jobs:
     strategy:
       matrix:
         glx_option: ['dri', 'xlib']
-    runs-on: macos-11
+    runs-on: macos-latest
     env:
       GALLIUM_DUMP_CPU: true
-      MESON_EXEC: /Users/runner/Library/Python/3.11/bin/meson
     steps:
     - name: Checkout
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
+
+    - name: Install Xcode Command Line Tools
+      run: xcode-select --install 2>/dev/null || true
+
     - name: Install Dependencies
       run: |
         cat > Brewfile <<EOL
@@ -26,32 +29,47 @@ jobs:
         brew "libxcb"
         brew "libxdamage"
         brew "libxext"
+        brew "libxfixes"
+        brew "libxxf86vm"
         brew "molten-vk"
         brew "ninja"
         brew "pkg-config"
-        brew "python@3.10"
+        brew "python@3.11"
+        brew "llvm"
         EOL
-
-        brew update
         brew bundle --verbose
+
     - name: Install Mako and meson
-      run: pip3 install --user mako meson
+      run: pip3 install mako meson
+
     - name: Configure
       run: |
         cat > native_config <<EOL
         [binaries]
-        llvm-config = '/usr/local/opt/llvm/bin/llvm-config'
+        llvm-config = '/opt/homebrew/opt/llvm/bin/llvm-config'
         EOL
-        $MESON_EXEC . build --native-file=native_config -Dmoltenvk-dir=$(brew --prefix molten-vk) -Dbuild-tests=true -Dosmesa=true -Dgallium-drivers=swrast,zink -Dglx=${{ matrix.glx_option }}
+        meson . build \
+          --native-file=native_config \
+          -Dmoltenvk-dir=$(brew --prefix molten-vk) \
+          -Dbuild-tests=true \
+          -Dosmesa=true \
+          -Dgallium-drivers=swrast,zink \
+          -Dglx=${{ matrix.glx_option }} \
+          -Dllvm=enabled \
+          -Dvulkan-drivers=swrast
+
     - name: Build
-      run: $MESON_EXEC compile -C build
+      run: meson compile -C build
+
     - name: Test
-      run: $MESON_EXEC test -C build --print-errorlogs
+      run: meson test -C build --print-errorlogs
+
     - name: Install
-      run: $MESON_EXEC install -C build --destdir $PWD/install
+      run: meson install -C build --destdir $PWD/install
+
     - name: 'Upload Artifact'
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: macos-${{ matrix.glx_option }}-result
         path: |
